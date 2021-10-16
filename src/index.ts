@@ -2,16 +2,29 @@ import fastify from "fastify";
 
 import fs from "fs/promises";
 import { exec } from "child_process";
-import { download, upload, jitter, latency, promClient } from "./metrics";
+import {
+  download,
+  upload,
+  jitter,
+  latency,
+  promClient,
+  testCounter,
+} from "./metrics";
 
-const app = fastify();
+// globals
 let runningTest = false;
+const resultsPath = __dirname + "/../results.json";
 
+// server
+const app = fastify();
 app.get("/metrics", async (req, res) => {
-  const resp = await readSpeedTest(`${__dirname}/../results.json`);
+  const resp = await readSpeedTest(resultsPath);
+  runSpeedTest(resultsPath);
 
   // if errors, return em
-  if (!resp) return res.status(500).send();
+  if (!resp) {
+    return res.status(500).send();
+  }
 
   res.header("Content-Type", promClient.register.contentType);
   return res.status(200).send(await promClient.register.metrics());
@@ -21,6 +34,7 @@ app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log("Server running at http://localhost:3000/");
 });
 
+// Helpers
 const calcSpeed = (bytes: number, miliseconds: number) => {
   // convert bytes and milliseconds to bits per second
   return Math.round(bytes * 8) / Math.round(miliseconds / 1000);
@@ -29,17 +43,21 @@ const calcSpeed = (bytes: number, miliseconds: number) => {
 const readSpeedTest = async (filePath: string) => {
   const file = await fs.readFile(filePath, "utf8");
 
-  if (!file) return false;
+  if (!file) {
+    return false;
+  }
 
   const results = JSON.parse(file);
-  if (!results) return false;
+  if (!results) {
+    return false;
+  }
 
   if (results.error) {
     console.error(results);
     return false;
   }
 
-  // set metrics
+  // set metric labels
   const metricLabels = {
     interface: results.interface.name,
     server: results.server.host,
@@ -58,26 +76,23 @@ const readSpeedTest = async (filePath: string) => {
   jitter.set(metricLabels, results.ping.jitter);
   latency.set(metricLabels, results.ping.latency);
 
-  // run the next speed test
-  runSpeedTest();
-
   return true;
 };
 
-const runSpeedTest = async () => {
+const runSpeedTest = async (filePath: string) => {
   if (runningTest) {
     console.log("speedtest already in progress...");
+    testCounter.inc({ type: "noop" });
     return false;
   }
   console.log(`running speedtest...`);
 
   // call speedtest cli with no progress bar and output to file
   const cmd = exec(
-    __dirname + "/../speedtest -p no -f json > ./../results.json",
+    __dirname + "/../speedtest -p no -f json > " + filePath,
     (error, stdout, stderr) => {
       if (error || stderr) {
         console.error(error || stderr);
-        runningTest = false;
       }
       if (stdout) {
         console.log({ stdout });
@@ -93,8 +108,10 @@ const runSpeedTest = async () => {
     runningTest = false;
     if (code === 0) {
       console.log("Child process exited", { code });
+      testCounter.inc({ type: "success" });
     } else {
       console.error("Child process exited", { code });
+      testCounter.inc({ type: "error" });
     }
   });
 };
