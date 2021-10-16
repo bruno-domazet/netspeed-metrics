@@ -23,8 +23,11 @@ app.get("/metrics", async (req, res) => {
 
   // if errors, return em
   if (!resp) {
+    testCounter.inc({ type: "error" });
     return res.status(500).send();
   }
+
+  testCounter.inc({ type: "success" });
 
   res.header("Content-Type", promClient.register.contentType);
   return res.status(200).send(await promClient.register.metrics());
@@ -44,11 +47,13 @@ const readSpeedTest = async (filePath: string) => {
   const file = await fs.readFile(filePath, "utf8");
 
   if (!file) {
+    console.error("failed to read file", { filePath });
     return false;
   }
 
   const results = JSON.parse(file);
   if (!results) {
+    console.error("failed to parse JSON", { filePath });
     return false;
   }
 
