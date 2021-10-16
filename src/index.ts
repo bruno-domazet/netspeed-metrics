@@ -5,11 +5,15 @@ import { exec } from "child_process";
 import { download, upload, jitter, latency, promClient } from "./metrics";
 
 const app = fastify();
+let runningTest = false;
+
 app.get("/metrics", async (req, res) => {
-  await readSpeedTest(`${__dirname}/../results.json`);
+  const resp = await readSpeedTest(`${__dirname}/../results.json`);
+
+  // if errors, return em
+  if (!resp) return res.status(500).send();
 
   res.header("Content-Type", promClient.register.contentType);
-
   return res.status(200).send(await promClient.register.metrics());
 });
 
@@ -18,11 +22,13 @@ app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
 });
 
 const calcSpeed = (bytes: number, miliseconds: number) => {
+  // convert bytes and milliseconds to bits per second
   return Math.round(bytes * 8) / Math.round(miliseconds / 1000);
 };
 
 const readSpeedTest = async (filePath: string) => {
   const file = await fs.readFile(filePath, "utf8");
+
   if (!file) return false;
 
   const results = JSON.parse(file);
@@ -59,25 +65,36 @@ const readSpeedTest = async (filePath: string) => {
 };
 
 const runSpeedTest = async () => {
+  if (runningTest) {
+    console.log("speedtest already in progress...");
+    return false;
+  }
   console.log(`running speedtest...`);
-  const ls = exec(
-    __dirname + "/../speedtest -f json > ./../results.json",
+
+  // call speedtest cli with no progress bar and output to file
+  const cmd = exec(
+    __dirname + "/../speedtest -p no -f json > ./../results.json",
     (error, stdout, stderr) => {
-      if (error) {
-        console.error("Error code: " + error.code);
-        console.error("Signal received: " + error.signal);
-        console.error(error.stack);
+      if (error || stderr) {
+        console.error(error || stderr);
+        runningTest = false;
       }
       if (stdout) {
-        console.log("Child Process STDOUT: " + stdout);
-      }
-      if (stderr) {
-        console.error("Child Process STDERR: " + stderr);
+        console.log({ stdout });
       }
     }
   );
 
-  ls.on("exit", (code) => {
-    console.log("Child process exited with exit code: " + code);
+  if (cmd.pid) {
+    runningTest = true;
+  }
+
+  cmd.on("exit", (code) => {
+    runningTest = false;
+    if (code === 0) {
+      console.log("Child process exited", { code });
+    } else {
+      console.error("Child process exited", { code });
+    }
   });
 };
