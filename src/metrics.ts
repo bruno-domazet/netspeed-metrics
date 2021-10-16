@@ -9,27 +9,27 @@ export interface labelKeys {
 }
 
 export const jitter = new client.Gauge({
-  name: "jitter",
+  name: "netspeed_jitter",
   help: "connection jitter",
   labelNames: labels,
 });
 export const latency = new client.Gauge({
-  name: "latency",
+  name: "netspeed_latency",
   help: "connection latency",
   labelNames: labels,
 });
 export const upload = new client.Gauge({
-  name: "upload",
+  name: "netspeed_upload",
   help: "bits per second",
   labelNames: labels,
 });
 export const download = new client.Gauge({
-  name: "download",
+  name: "netspeed_download",
   help: "bits per second",
   labelNames: labels,
 });
 export const testCounter = new client.Counter({
-  name: "testCount",
+  name: "netspeed_test_count",
   help: "counts performed speedtests per type",
   labelNames: ["type"],
 });
