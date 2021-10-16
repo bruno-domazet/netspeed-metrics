@@ -33,7 +33,7 @@ app.get("/metrics", async (req, res) => {
   return res.status(200).send(await promClient.register.metrics());
 });
 
-app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
+app.listen({ port: 3002, host: "0.0.0.0" }).then(() => {
   console.log("Server running at http://localhost:3000/");
 });
 

@@ -10,5 +10,5 @@ RUN ./speedtest --accept-license --accept-gdpr -p no -f json > ./results.json
 
 RUN yarn clean && yarn install && yarn build
 
-EXPOSE 3000
+EXPOSE 3002
 CMD node dist/index.js
