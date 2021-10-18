@@ -13,12 +13,14 @@ import {
 
 // globals
 let runningTest = false;
-const resultsPath = __dirname + "/../results.json";
+const resultsPath = "/code/results.json";
 
 // server
 const app = fastify();
+
 app.get("/metrics", async (req, res) => {
   const resp = await readSpeedTest(resultsPath);
+  // queue new speedtest
   runSpeedTest(resultsPath);
 
   // if errors, return em
@@ -27,7 +29,21 @@ app.get("/metrics", async (req, res) => {
     return res.status(500).send();
   }
 
-  testCounter.inc({ type: "success" });
+  // set metric labels
+  const metricLabels = {
+    interface: resp.interface.name,
+    server: resp.server.host,
+  };
+
+  download.set(
+    metricLabels,
+    calcSpeed(resp.download.bytes, resp.download.elapsed)
+  );
+
+  upload.set(metricLabels, calcSpeed(resp.upload.bytes, resp.upload.elapsed));
+
+  jitter.set(metricLabels, resp.ping.jitter);
+  latency.set(metricLabels, resp.ping.latency);
 
   res.header("Content-Type", promClient.register.contentType);
   return res.status(200).send(await promClient.register.metrics());
@@ -62,26 +78,7 @@ const readSpeedTest = async (filePath: string) => {
     return false;
   }
 
-  // set metric labels
-  const metricLabels = {
-    interface: results.interface.name,
-    server: results.server.host,
-  };
-
-  download.set(
-    metricLabels,
-    calcSpeed(results.download.bytes, results.download.elapsed)
-  );
-
-  upload.set(
-    metricLabels,
-    calcSpeed(results.upload.bytes, results.upload.elapsed)
-  );
-
-  jitter.set(metricLabels, results.ping.jitter);
-  latency.set(metricLabels, results.ping.latency);
-
-  return true;
+  return results;
 };
 
 const runSpeedTest = async (filePath: string) => {
@@ -94,12 +91,13 @@ const runSpeedTest = async (filePath: string) => {
 
   // call speedtest cli with no progress bar and output to file
   const cmd = exec(
-    __dirname + "/../speedtest -p no -f json > " + filePath,
-    (error, stdout, stderr) => {
+    "/code/speedtest  --accept-license --accept-gdpr -p no -f json",
+    async (error, stdout, stderr) => {
       if (error || stderr) {
         console.error(error || stderr);
       }
       if (stdout) {
+        await fs.writeFile(filePath, stdout);
         console.log({ stdout });
       }
     }
