@@ -1,7 +1,11 @@
-FROM node:latest
+FROM node:alpine
 
 RUN mkdir -p /code
 WORKDIR /code
+
+
+ENV RESULTS_PATH="/code/results.json"
+ENV SPEEDTEST_BIN_PATH="/code/speedtest"
 
 COPY . .
 # make initial run of speedtest.net (accepting licenses along the way)
