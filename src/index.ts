@@ -1,6 +1,7 @@
 import fastify from "fastify";
 
-import { readFile, stat, writeFile } from "fs/promises";
+import { readFile, writeFile, access } from "fs/promises";
+import fs from "fs";
 import { exec } from "child_process";
 import {
   download,
@@ -59,8 +60,10 @@ const calcSpeed = (bytes: number, miliseconds: number) => {
 
 // read and parse local file (cache)
 const readSpeedTest = async (filePath: string) => {
-  if (!(await stat(filePath))) {
-    console.error("failed to access file", { filePath });
+  const exists = await fileExists(resultsPath);
+
+  if (!exists) {
+    console.error("file doesn't exist", { filePath });
     return false;
   }
 
@@ -127,7 +130,23 @@ const runSpeedTest = async (filePath: string) => {
   });
 };
 
+const fileExists = async (filepath: string) => {
+  let flag = true;
+  try {
+    await access(filepath, fs.constants.F_OK);
+  } catch (e) {
+    flag = false;
+  }
+  return flag;
+};
+
 // start server
-app.listen(serverConfig).then(() => {
+app.listen(serverConfig).then(async () => {
+  // run speedtest if no cache file
+  const exists = await fileExists(resultsPath);
+  if (!exists) {
+    runSpeedTest(resultsPath);
+  }
+
   console.log(`Server running at ${serverConfig.host}:${serverConfig.port}`);
 });
