@@ -118,10 +118,12 @@ const readSpeedTest = async (filePath: string) => {
 
 // invoke speedtest cli and write results to local file (cache)
 const runSpeedTest = async (filePath: string) => {
-
-  const isOutdated = await fileOutdated(filePath);
-  if (isOutdated) {
-    runningTest = false
+  const exists = await fileExists(resultsPath);
+  if (exists) {
+    const isOutdated = await fileOutdated(filePath);
+    if (isOutdated) {
+      runningTest = false
+    }
   }
 
   if (runningTest) {
