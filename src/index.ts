@@ -1,6 +1,6 @@
 import fastify from "fastify";
 
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, writeFile, access, stat } from "fs/promises";
 import fs from "fs";
 import { exec } from "child_process";
 import {
@@ -58,12 +58,39 @@ const calcSpeed = (bytes: number, miliseconds: number) => {
   return Math.round(bytes * 8) / Math.round(miliseconds / 1000);
 };
 
+const fileOutdated = async (filePath: string) => {
+  // check age of file
+  const { mtimeMs } = await stat(filePath);
+  const diffInMin = Math.floor((Date.now() - mtimeMs) / (60 * 1000))
+
+  return (diffInMin >= 5);
+}
+
+const fileExists = async (filepath: string) => {
+  let flag = true;
+  try {
+    await access(filepath, fs.constants.F_OK);
+  } catch (e) {
+    flag = false;
+  }
+  return flag;
+};
+
+
+
 // read and parse local file (cache)
 const readSpeedTest = async (filePath: string) => {
   const exists = await fileExists(resultsPath);
 
   if (!exists) {
     console.error("file doesn't exist", { filePath });
+    return false;
+  }
+
+  // check age of file
+  const isOutdated = await fileOutdated(filePath);
+  if (isOutdated) {
+    console.error("file is older than 5 minutes", { filePath });
     return false;
   }
 
@@ -91,17 +118,24 @@ const readSpeedTest = async (filePath: string) => {
 
 // invoke speedtest cli and write results to local file (cache)
 const runSpeedTest = async (filePath: string) => {
+
+  const isOutdated = await fileOutdated(filePath);
+  if (isOutdated) {
+    runningTest = false
+  }
+
   if (runningTest) {
     console.log("speedtest already in progress...");
     testCounter.inc({ type: "noop" });
     return false;
   }
+
   console.log(`running speedtest...`);
 
   // call speedtest cli with no progress bar and output to file
   const cmd = exec(
     (process.env.SPEEDTEST_BIN_PATH || __dirname + "/../speedtest") +
-      " --accept-license --accept-gdpr -p no -f json",
+    " --accept-license --accept-gdpr -p no -f json",
     async (error, stdout, stderr) => {
       if (error || stderr) {
         console.error(error || stderr);
@@ -129,17 +163,6 @@ const runSpeedTest = async (filePath: string) => {
     }
   });
 };
-
-const fileExists = async (filepath: string) => {
-  let flag = true;
-  try {
-    await access(filepath, fs.constants.F_OK);
-  } catch (e) {
-    flag = false;
-  }
-  return flag;
-};
-
 // start server
 app.listen(serverConfig).then(async () => {
   // run speedtest if no cache file
