@@ -1,4 +1,4 @@
 #!/bin/bash
-[[ ! -z $(docker ps --filter name=netspeed -q) ]] && docker rm --force --volumes netspeed
+[[ ! -z $(docker ps --all --filter name=netspeed -q) ]] && docker rm --force --volumes netspeed
 docker build --tag netspeed-metrics:latest . 
 docker run -d -p 3002:3002 --name netspeed netspeed-metrics:latest
