@@ -1,8 +1,9 @@
 FROM node:latest
 
+RUN apt update -qq && apt install -qqy dnsutils
+
 RUN mkdir -p /code
 WORKDIR /code
-
 
 ENV RESULTS_PATH="/code/results.json"
 ENV SPEEDTEST_BIN_PATH="/code/speedtest"
